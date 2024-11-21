@@ -94,6 +94,11 @@ export async function scrapeWebsite(domain){
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   // This is the main module
+  // https://www.cntraveler.com/gallery/best-copenhagen-hotels
+// https://www.cntraveller.com/gallery/copenhagen-hotels
+// https://www.tripadvisor.com/Hotels-g189541-Copenhagen_Zealand-Hotels.html
+// https://www.telegraph.co.uk/travel/destinations/europe/denmark/copenhagen/hotels/
+// https://www.travelandleisure.com/best-hotels-in-copenhagen-8637025
   scrapeWebsite("www.travelandleisure.com/best-hotels-in-copenhagen-8637025")
   .then((res) => {
     console.log(res)
