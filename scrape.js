@@ -1,3 +1,5 @@
+// notes
+// remove the script tags 
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import puppeteer from "puppeteer-core";
@@ -31,10 +33,58 @@ export async function scrapeWebsite(domain){
     });
     await page.goto(`https://${domain}`, { waitUntil: 'domcontentloaded' });
     //const html = await page.content();
-    //const body = await page.evaluate(() => document.body.innerHTML);
-    const text = await page.evaluate(() => document.body.innerText);
+    const body = await page.evaluate(() => {
+
+      // Remove all HTML comments from the document
+      const comments = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT, null, false);
+      let comment = comments.nextNode();
+      while (comment) {
+        comment.remove(); // Remove the comment node
+        comment = comments.nextNode();
+      }
+
+      // Remove all <script> elements from the DOM
+      document.querySelectorAll('script').forEach(script => script.remove());
+      document.querySelectorAll('noscript').forEach(script => script.remove());
+      document.querySelectorAll('svg').forEach(script => script.remove());
+      document.querySelectorAll('button').forEach(script => script.remove());
+      document.querySelectorAll('footer').forEach(script => script.remove());
+      document.querySelectorAll('nav').forEach(script => script.remove());
+      document.querySelectorAll('header').forEach(script => script.remove());
+
+       document.querySelectorAll('*').forEach(el => {
+        // Remove `id` if it doesn't match the allowed keywords
+        if (el.id && !/nav|footer|navigation|header/i.test(el.id)) {
+          el.removeAttribute('id');
+        }
+        // Remove `class` if it doesn't match the allowed keywords
+        if (el.className && !/nav|footer|navigation|header/i.test(el.className)) {
+          el.removeAttribute('class');
+        }
+      });
+       document.querySelectorAll('img').forEach(img => img.removeAttribute('src'));
+
+      document.querySelectorAll('*').forEach(el => {
+        // Remove all attributes except id and class
+        [...el.attributes].forEach(attr => {
+          if (!['id', 'class'].includes(attr.name)) {
+            el.removeAttribute(attr.name);
+          }
+        });
+
+        // Remove element if it is empty (no text and no children)
+        if (el.textContent.trim() === '' && el.children.length === 0) {
+          el.remove();
+        }
+      });
+
+      // Return the body HTML without <script> tags and stripped attributes
+      return document.body.innerHTML;
+      return document.body.innerHTML;
+    });
+    //const text = await page.evaluate(() => document.body.innerText);
     await browser.close();
-    return text;
+    return body
   } catch (error) {
     console.log(error)
     process.exit(1)
