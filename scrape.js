@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import puppeteer from "puppeteer-core";
 import dotenv from 'dotenv';
+import { cleanContent } from "./clean.js";
 import fs from 'fs';
 
 dotenv.config();
@@ -15,25 +16,45 @@ const BROWSER_WS_ENDPOINT = process.env.BROWSER_WS_ENDPOINT;
 
 export async function scrapeWebsite(domain){
   const BROWSER_WS = BROWSER_WS_ENDPOINT;
-  console.log({ domain })
+
   try {
     console.log('Connecting to Scraping Browser...');
+
+    console.time('Connecting Time');
     const browser = await puppeteer.connect({
       browserWSEndpoint: BROWSER_WS,
     });
+    console.timeEnd('Connecting Time');
+
+    console.time("Opening Page");
     const page = await browser.newPage();
     await page.setRequestInterception(true);
-    // Handle requests
+
     page.on('request', (request) => {
-      if (request.resourceType() === 'document') {
+      const allowedResources = ['document', 'script', 'xhr', 'fetch'];
+      if (allowedResources.includes(request.resourceType())) {
         request.continue();
       } else {
         request.abort();
       }
     });
+
     await page.goto(`https://${domain}`, { waitUntil: 'domcontentloaded' });
-    //const html = await page.content();
+
+    console.timeEnd("Opening Page");
+
+    console.time("Cleaning content");
     const body = await page.evaluate(() => {
+
+      const countWords = (text) => {
+        return text.split(/\s+/).filter(word => word.trim().length > 0).length;
+      };
+
+      const wordCount = countWords(document.body.innerText || "");
+      const headlineCount = document.querySelectorAll('h1, h2, h3, h4, h5, h6').length;
+      const paragraphCount = document.querySelectorAll('p').length;
+      const imageCount = document.querySelectorAll('img').length;
+  
 
       // Remove all HTML comments from the document
       const comments = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT, null, false);
@@ -151,16 +172,37 @@ export async function scrapeWebsite(domain){
       });
       
       // Return the body HTML without <script> tags and stripped attributes
-      return html
-      return document.body.innerHTML;
+      return {
+        result: true,
+        word_count: wordCount,
+        headline_count: headlineCount,
+        paragraph_count: paragraphCount,
+        image_count: imageCount,
+        content: html,
+        url: window.location.href,
+      }
     });
-    //const text = await page.evaluate(() => document.body.innerText);
+    console.timeEnd("Cleaning content");
     await browser.close();
-    return body
+    console.time("Cleaning content");
+    const { content, ...rest } = body;
+    const cleanedContent = await cleanContent(content);
+    console.timeEnd("Cleaning content");
+    return {
+      content: cleanedContent,
+      ...rest
+      }
   } catch (error) {
     console.log(error)
-    process.exit(1)
-    return "<html><body>Failed to scrape website</body></html>"
+    return {
+      result: false,
+      word_count: 0,
+      headline_count: 0,
+      paragraph_count: 0,
+      image_count: 0,
+      content: '',
+      url: '',
+    }
   }
 }
 
@@ -174,7 +216,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   scrapeWebsite("www.travelandleisure.com/best-hotels-in-copenhagen-8637025")
   .then((res) => {
     console.log(res)
-    fs.writeFileSync('output.txt', res);
+    //fs.writeFileSync('output.txt', res);
     console.log('Scraping completed');
   })
   .catch((error) => {
